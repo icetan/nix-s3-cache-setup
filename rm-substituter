@@ -1,0 +1,64 @@
+#!/bin/bash
+set -ex
+
+sub_uri="$1"
+esc_sub_uri="${sub_uri//&/\\&}"
+
+root_conf="/etc/nix/nix.conf"
+user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
+
+tmp_file="${TEMP:-/tmp}/nix-conf.$(basenc --base32 /dev/random | head -c8 || true)"
+trap "trap - EXIT;rm -rf '$tmp_file'" EXIT
+
+try_sudo() { 
+  "$@" 2>/dev/null || sudo "$@"
+}
+
+is_trusted_user() {
+  grep -q "^trusted-users =.*\b$USER\b" "$nix_conf"
+}
+
+update_conf() {
+  cp "$1" "$tmp_file"
+
+  if diff -u "$nix_conf" "$tmp_file"; then
+    echo >&2 "No changes to apply"
+  else
+    echo -n >&2 "Apply changes to $nix_conf by typing 'yes': "
+    read -r answer
+
+    if [[ $answer = yes ]]; then
+      if try_sudo cp "$tmp_file" "$nix_conf"; then
+        echo >&2 "Successfully updated config: $nix_conf"
+        if [[ $nix_conf = $root_conf ]]; then
+          echo >&2 "Note: Restart of nix-daemon is required for changes to take effect"
+        fi
+      else
+        echo >&2 "Failed to update config: $nix_conf"
+      fi
+    else
+      echo >&2 "No changes applied"
+    fi
+  fi
+}
+
+is_added() {
+  grep -q "^substituters =.*\( \|\b\)$sub_uri\( \|$\)" "$1"
+}
+
+add_sub() {
+  nix_conf="$root_conf"
+
+  if is_added "$nix_conf"; then
+    echo >&2 "Substituter URI '$sub_uri' is already in config: $nix_conf"
+    exit 0
+  fi
+
+  if is_trusted_user; then
+    nix_conf="$user_conf"
+    if is_added "$nix_conf"; then
+      echo >&2 "Substituter URI '$sub_uri' is already in config: $nix_conf"
+      exit 0
+    fi
+  fi
+}

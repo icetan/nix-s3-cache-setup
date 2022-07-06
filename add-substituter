@@ -1,0 +1,63 @@
+#!/bin/bash
+set -e
+
+if [[ $# = 1 ]]; then
+  sub_uri="$1"
+  esc_sub_uri="${sub_uri//&/\\&}"
+else
+  echo >&2 "Only one argument required"
+  exit 1
+fi
+
+try_sudo() { 
+  "$@" 2>/dev/null || sudo "$@"
+}
+
+exit_if_added() {
+  if grep -q "^substituters =.*\( \|\b\)$sub_uri\( \|$\)" "$nix_conf"; then
+    echo >&2 "Substituter URI '$sub_uri' is already in config: $nix_conf"
+    exit 0
+  fi
+}
+
+root_conf="/etc/nix/nix.conf"
+user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
+
+nix_conf="$root_conf"
+exit_if_added
+
+if grep -q "^trusted-users =.*\b$USER\b" "$nix_conf"; then
+  nix_conf="$user_conf"
+  exit_if_added
+fi
+
+tmp_file="${TEMP:-/tmp}/nix-conf.$(head -c5 /dev/random | basenc --base32)"
+
+cp "$nix_conf" "$tmp_file"
+trap 'trap - EXIT;rm -rf "$tmp_file"' EXIT
+
+if grep -q "^substituters =" "$tmp_file"; then
+  sed -i'' "s|^substituters =.*$|\0 $esc_sub_uri|" "$tmp_file"
+else
+  echo "substituters = https://cache.nixos.org $sub_uri" >> "$tmp_file"
+fi
+
+if diff -u "$nix_conf" "$tmp_file"; then
+  echo >&2 "No changes to apply"
+else
+  echo -n >&2 "Apply changes to $nix_conf by typing 'yes': "
+  read -r answer
+
+  if [[ $answer = yes ]]; then
+    if try_sudo cp "$tmp_file" "$nix_conf"; then
+      echo >&2 "Successfully updated config: $nix_conf"
+      if [[ $nix_conf = "$root_conf" ]]; then
+        echo >&2 "Note: Restart of nix-daemon is required for changes to take effect"
+      fi
+    else
+      echo >&2 "Failed to update config: $nix_conf"
+    fi
+  else
+    echo >&2 "No changes applied"
+  fi
+fi

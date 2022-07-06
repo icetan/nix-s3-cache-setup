@@ -1,0 +1,38 @@
+{
+  "nodes": {
+    "hello": {
+      "flake": false,
+      "locked": {
+        "narHash": "sha256-RL5t/i2iZQQ0ZDmM8kvO9wy+4uz7Rjv3oPtTMAeAUOU=",
+        "type": "tarball",
+        "url": "https://ftp.acc.umu.se/mirror/gnu.org/gnu/hello/hello-2.3.tar.bz2"
+      },
+      "original": {
+        "type": "tarball",
+        "url": "https://ftp.acc.umu.se/mirror/gnu.org/gnu/hello/hello-2.3.tar.bz2"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1656338871,
+        "narHash": "sha256-+LOvZFt3MpWtrxXLH4igQtRVzyD43VnuTJjDVbt7phY=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "819e4d63fc7f337a822a049fd055cd7615a5e0d6",
+        "type": "github"
+      },
+      "original": {
+        "id": "nixpkgs",
+        "type": "indirect"
+      }
+    },
+    "root": {
+      "inputs": {
+        "hello": "hello",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
