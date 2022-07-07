@@ -1,0 +1,30 @@
+#!/bin/bash
+set -e
+
+CACHE_URI=
+SECRET_KEY=
+
+if [[ $# -gt 0 ]]; then
+  CACHE_URI="s3://${1:-nix-cache-testing}?endpoint=https://storage.googleapis.com&profile=gcp"
+fi
+if [[ $# -gt 1 ]]; then
+  SECRET_KEY="${SECRET_KEY:-$2}"
+fi
+if [[ -z $CACHE_URI ]]; then
+  echo >&2 "Takes cache name and optional secret key path as arguments"
+  exit 1
+fi
+
+mapfile -t OUT_PATH
+
+echo "${OUT_PATH[@]}"
+
+if [[ -f $SECRET_KEY ]]; then
+  echo "Signing paths with $SECRET_KEY..."
+  nix store sign -k "$SECRET_KEY" "${OUT_PATH[@]}"
+fi
+
+echo "Copying paths to $CACHE_URI..."
+
+export AWS_EC2_METADATA_DISABLED=true
+nix copy --to "$CACHE_URI" "${OUT_PATH[@]}"

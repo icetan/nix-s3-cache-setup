@@ -14,6 +14,12 @@
       runtimeInputs = with pkgs; [ coreutils gnugrep gnused diffutils ];
       text = builtins.readFile ./add-substituter;
     };
+
+    copy-to-gcp = pkgs.writeShellApplication {
+      name = "copy-to-gcp";
+      runtimeInputs = with pkgs; [ ];
+      text = builtins.readFile ./copy-to-gcp;
+    };
   in {
     packages.x86_64-linux.default = stdenv.mkDerivation {
       name = "hello-nix-8";
@@ -26,6 +32,10 @@
     apps.x86_64-linux = {
       add-substituter = {
         program = "${add-substituter}/bin/add-substituter";
+        type = "app";
+      };
+      copy-to-gcp = {
+        program = "${copy-to-gcp}/bin/copy-to-gcp";
         type = "app";
       };
     };
