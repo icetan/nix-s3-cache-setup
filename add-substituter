@@ -9,55 +9,118 @@ else
   exit 1
 fi
 
-try_sudo() { 
-  "$@" 2>/dev/null || sudo "$@"
-}
+tmp_files=
+ecode=1
 
-exit_if_added() {
-  if grep -q "^substituters =.*\( \|\b\)$sub_uri\( \|$\)" "$nix_conf"; then
-    echo >&2 "Substituter URI '$sub_uri' is already in config: $nix_conf"
-    exit 0
+exit_notice() {
+  if [[ $ecode = 0 ]]; then
+    notice "Successfully added cache '$sub_uri'"
+  else
+    notice "Failed to add cache '$sub_uri'"
+    exit $ecode
   fi
 }
+
+trap 'trap - EXIT;if [[ -n "${tmp_files[@]}" ]]; then rm -rf "${tmp_files[@]}"; fi; exit_notice' EXIT
 
 root_conf="/etc/nix/nix.conf"
 user_conf="${XDG_CONFIG_HOME:-$HOME/.config}/nix/nix.conf"
 
-nix_conf="$root_conf"
-exit_if_added
+notice() {
+  cat >&2 <<EOF
 
-if grep -q "^trusted-users =.*\b$USER\b" "$nix_conf"; then
-  nix_conf="$user_conf"
-  exit_if_added
-fi
+------------------------------------------------------------------------------
+$(echo "$1" | fmt -w79)
+------------------------------------------------------------------------------
+EOF
+}
 
-tmp_file="${TEMP:-/tmp}/nix-conf.$(head -c5 /dev/random | basenc --base32)"
+try_sudo() { 
+  "$@" 2>/dev/null || sudo "$@"
+}
 
-cp "$nix_conf" "$tmp_file"
-trap 'trap - EXIT;rm -rf "$tmp_file"' EXIT
+is_added() {
+  grep -q "^substituters =.*\( \|\b\)$sub_uri\( \|$\)" "$1"
+}
 
-if grep -q "^substituters =" "$tmp_file"; then
-  sed -i'' "s|^substituters =.*$|\0 $esc_sub_uri|" "$tmp_file"
-else
-  echo "substituters = https://cache.nixos.org $sub_uri" >> "$tmp_file"
-fi
+is_trusted_user() {
+  if grep -q "^trusted-users =.*\b$USER\b" "$root_conf"; then
+    return 0
+  fi
+  return 1
+}
 
-if diff -u "$nix_conf" "$tmp_file"; then
-  echo >&2 "No changes to apply"
-else
-  echo -n >&2 "Apply changes to $nix_conf by typing 'yes': "
+edit_conf() {
+  local conf_file
+  local tmp_file
+  conf_file="$1"
+  tmp_file="${TEMP:-/tmp}/nix-conf.$(head -c5 /dev/random | basenc --base32)"
+  tmp_files+=("$tmp_file")
+
+  cp "$conf_file" "$tmp_file"
+
+  if grep -q "^substituters =" "$tmp_file"; then
+    sed -i'' "s|^substituters =.*$|\0 $esc_sub_uri|" "$tmp_file"
+  else
+    echo "substituters = https://cache.nixos.org $sub_uri" >> "$tmp_file"
+  fi
+
+  if diff -u "$conf_file" "$tmp_file"; then
+    echo >&2 "No changes to apply"
+    return 0
+  fi
+
+  notice "Apply changes to $conf_file?"
+  echo -n >&2 "Type 'yes' and press enter to continue: "
   read -r answer
 
   if [[ $answer = yes ]]; then
-    if try_sudo cp "$tmp_file" "$nix_conf"; then
-      echo >&2 "Successfully updated config: $nix_conf"
-      if [[ $nix_conf = "$root_conf" ]]; then
-        echo >&2 "Note: Restart of nix-daemon is required for changes to take effect"
+    if try_sudo cp "$tmp_file" "$conf_file"; then
+      notice "Successfully updated config: $conf_file"
+      if [[ $conf_file = "$root_conf" ]]; then
+        notice "Note: Restart of nix-daemon is required for changes to take effect"
       fi
+      return 0
     else
-      echo >&2 "Failed to update config: $nix_conf"
+      notice "Failed to update config: $conf_file"
+      return 1
     fi
   else
-    echo >&2 "No changes applied"
+    notice "No changes applied to: $conf_file"
+    return 1
   fi
-fi
+}
+
+
+add_sub() {
+  if is_added "$root_conf" && is_added "$user_conf"; then
+    notice "Substituter URI '$sub_uri' is already in root ($root_conf) and user config ($user_conf)"
+    return 0
+  fi
+
+  if is_trusted_user && is_added "$user_conf"; then
+    notice "Substituter URI '$sub_uri' is already in user config ($user_conf) and your user ($USER) is trusted by root config ($root_conf)"
+    return 0
+  fi
+
+  if  is_trusted_user; then
+    notice "Your user ($USER) is trusted by root config ($root_conf)"
+  elif is_added "$root_conf"; then :
+    notice "Substituter URI '$sub_uri' is already in root config ($root_conf)"
+  else
+    notice "Need to edit root config $root_conf
+
+NOTE: This may require SUDO
+"
+    edit_conf "$root_conf" || return 1
+  fi
+
+  if is_added "$user_conf"; then :
+  else
+    notice "Need to edit user config $user_conf"
+    edit_conf "$user_conf" || return 1
+  fi
+}
+
+add_sub
+ecode=0

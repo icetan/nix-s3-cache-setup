@@ -57,7 +57,7 @@ Build and copy to cache:
 
 ```sh
 export AWS_EC2_METADATA_DISABLED=true # to skip some bullshit
-SUB_URI="s3://$CACHE_NAME?endpoint=https://storage.googleapis.com&profile=gcp"
+SUB_URI="s3://$CACHE_NAME?endpoint=https://storage.googleapis.com&profile=gcp&trusted=true"
 
 nix copy --to "$SUB_URI"
 ```

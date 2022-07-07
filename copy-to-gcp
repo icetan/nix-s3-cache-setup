@@ -27,4 +27,4 @@ fi
 echo "Copying paths to $CACHE_URI..."
 
 export AWS_EC2_METADATA_DISABLED=true
-nix copy --to "$CACHE_URI" "${OUT_PATH[@]}"
+nix copy --to "$CACHE_URI" "${OUT_PATH[@]}" --verbose
