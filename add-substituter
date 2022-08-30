@@ -44,9 +44,14 @@ is_added() {
 }
 
 is_trusted_user() {
+  if [[ ! -f $root_conf ]]; then
+    return 0
+  fi
+
   if grep -q "^trusted-users =.*\b$USER\b" "$root_conf"; then
     return 0
   fi
+
   return 1
 }
 
@@ -93,9 +98,11 @@ edit_conf() {
 
 
 add_sub() {
-  if is_added "$root_conf" && is_added "$user_conf"; then
-    notice "Substituter URI '$sub_uri' is already in root ($root_conf) and user config ($user_conf)"
-    return 0
+  if [[ -f $root_conf ]]; then
+    if is_added "$root_conf" && is_added "$user_conf"; then
+      notice "Substituter URI '$sub_uri' is already in root ($root_conf) and user config ($user_conf)"
+      return 0
+    fi
   fi
 
   if is_trusted_user && is_added "$user_conf"; then

@@ -22,7 +22,7 @@
     };
   in {
     packages.x86_64-linux.default = stdenv.mkDerivation {
-      name = "hello-nix-8";
+      name = "hello-nix-12";
       src = hello;
       patchPhase = ''
         sed -i 's/Hello, world!/hello, Nix!/g' src/hello.c

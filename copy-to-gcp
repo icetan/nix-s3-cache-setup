@@ -5,7 +5,7 @@ CACHE_URI=
 SECRET_KEY=
 
 if [[ $# -gt 0 ]]; then
-  CACHE_URI="s3://${1:-nix-cache-testing}?endpoint=https://storage.googleapis.com&profile=gcp"
+  CACHE_URI="s3://${1:-nix-cache-testing}?endpoint=https://storage.googleapis.com&profile=gcp&trusted=true"
 fi
 if [[ $# -gt 1 ]]; then
   SECRET_KEY="${SECRET_KEY:-$2}"
